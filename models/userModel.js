@@ -20,6 +20,12 @@ const userSchema = new mongoose.Schema({
      role: {
         type: String, enum:["User", "Volunteer", "Admin"]
     },
+     bio: {
+        type: String, default: ""
+    },
+     imageUrl: {
+        type: String, default: ""
+    },
 
 });
 module.exports = mongoose.model("User", userSchema);

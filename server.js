@@ -4,7 +4,9 @@ const cors = require("cors");
 require("dotenv").config();
 
 const authRoutes = require("./routes/authRoutes");
-const profileRoutes = require("./routes/profileRoutes"); 
+const profileRoutes = require("./routes/profileRoutes");
+const issueRoutes = require("./routes/issueRoutes");
+const imagekitRoutes = require("./routes/imagekitRoutes"); 
 
 const app = express();
 
@@ -18,6 +20,8 @@ mongoose
 
 app.use("/api/auth", authRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/issues", issueRoutes);
+app.use("/api/imagekit", imagekitRoutes);
 
 app.get("/", (req, res) => {
   res.send("Server Running...");
