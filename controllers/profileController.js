@@ -1,0 +1,51 @@
+const User = require("../models/userModel");
+const bcrypt = require("bcrypt");
+
+// GET PROFILE
+exports.getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select("-password");
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// UPDATE PROFILE
+exports.updateProfile = async (req, res) => {
+  try {
+    const { name, username, phone, location } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.userId,
+      { name, username, phone, location },
+      { new: true }
+    ).select("-password");
+
+    res.json({ message: "Profile updated", user: updatedUser });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// CHANGE PASSWORD
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user.userId);
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Current password is wrong" });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    user.password = hashed;
+    await user.save();
+
+    res.json({ message: "Password changed successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
