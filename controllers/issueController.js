@@ -43,15 +43,25 @@ exports.createIssue = async (req, res) => {
   }
 };
 
-// GET ALL ISSUES (with filters)
+// GET ALL ISSUES (with filters and search)
 exports.getAllIssues = async (req, res) => {
   try {
-    const { status, issueType, priorityLevel, page = 1, limit = 10 } = req.query;
+    const { status, issueType, priorityLevel, search, page = 1, limit = 10 } = req.query;
 
     const filter = {};
     if (status) filter.status = status;
     if (issueType) filter.issueType = issueType;
     if (priorityLevel) filter.priorityLevel = priorityLevel;
+
+    // Add search functionality
+    if (search) {
+      filter.$or = [
+        { issueTitle: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { address: { $regex: search, $options: "i" } },
+        { issueType: { $regex: search, $options: "i" } },
+      ];
+    }
 
     const issues = await Issue.find(filter)
       .populate("reportedBy", "name username email")
@@ -64,6 +74,7 @@ exports.getAllIssues = async (req, res) => {
 
     res.json({
       issues,
+      total,
       totalPages: Math.ceil(total / limit),
       currentPage: parseInt(page),
       totalIssues: total,
@@ -102,7 +113,10 @@ exports.getMyIssues = async (req, res) => {
   }
 };
 
-// UPDATE ISSUE (by reporter)
+// UPDATE ISSUE (role-based access)
+// - Owner: can edit all details except status
+// - Admin: can only change status
+// - Others: no edit access
 exports.updateIssue = async (req, res) => {
   try {
     const issue = await Issue.findById(req.params.id);
@@ -111,14 +125,12 @@ exports.updateIssue = async (req, res) => {
       return res.status(404).json({ message: "Issue not found" });
     }
 
-    // Only allow the reporter to update their own issue
-    if (issue.reportedBy.toString() !== req.user.userId) {
-      return res.status(403).json({ message: "Not authorized to update this issue" });
-    }
+    const isOwner = issue.reportedBy.toString() === req.user.userId;
+    const isAdmin = req.user.role === "Admin";
 
-    // Only allow updates if status is still Pending
-    if (issue.status !== "Pending") {
-      return res.status(400).json({ message: "Cannot update issue once it's being processed" });
+    // Check if user has any edit permission
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ message: "Not authorized to update this issue" });
     }
 
     const {
@@ -129,27 +141,40 @@ exports.updateIssue = async (req, res) => {
       landmark,
       description,
       location,
-      images, // Array of ImageKit URLs from client-side upload
+      images,
+      status,
     } = req.body;
 
-    // Parse location if it's a string
-    let parsedLocation = location;
-    if (typeof location === "string" && location) {
-      parsedLocation = JSON.parse(location);
+    // Owner can edit issue details (but not status)
+    if (isOwner) {
+      // Parse location if it's a string
+      let parsedLocation = location;
+      if (typeof location === "string" && location) {
+        parsedLocation = JSON.parse(location);
+      }
+
+      if (issueTitle) issue.issueTitle = issueTitle;
+      if (issueType) issue.issueType = issueType;
+      if (priorityLevel) issue.priorityLevel = priorityLevel;
+      if (address !== undefined) issue.address = address;
+      if (landmark !== undefined) issue.landmark = landmark;
+      if (description !== undefined) issue.description = description;
+      if (parsedLocation) issue.location = parsedLocation;
+      if (images) issue.images = images;
     }
 
-    if (issueTitle) issue.issueTitle = issueTitle;
-    if (issueType) issue.issueType = issueType;
-    if (priorityLevel) issue.priorityLevel = priorityLevel;
-    if (address !== undefined) issue.address = address;
-    if (landmark !== undefined) issue.landmark = landmark;
-    if (description !== undefined) issue.description = description;
-    if (parsedLocation) issue.location = parsedLocation;
-    if (images) issue.images = images;
+    // Only Admin can change status
+    if (isAdmin && status) {
+      issue.status = status;
+    }
 
     await issue.save();
 
-    res.json({ message: "Issue updated successfully", issue });
+    // Return populated issue with user details
+    const updatedIssue = await Issue.findById(req.params.id)
+      .populate("reportedBy", "name username email");
+
+    res.json(updatedIssue);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
