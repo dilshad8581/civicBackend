@@ -13,6 +13,26 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
+    // Validate email domain for Volunteer role
+    if (role === "Volunteer") {
+      const isVolunteerEmail = email.toLowerCase().endsWith("@v.com");
+      if (!isVolunteerEmail) {
+        return res.status(400).json({
+          message: "Volunteers must register with a volunteer email (@v.com)"
+        });
+      }
+    }
+
+    // Validate email domain for Admin role
+    if (role === "Admin") {
+      const isAdminEmail = email.toLowerCase().endsWith("@a.gmail");
+      if (!isAdminEmail) {
+        return res.status(400).json({
+          message: "Admins must register with an admin email (@a.gmail)"
+        });
+      }
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 

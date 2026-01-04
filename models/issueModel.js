@@ -1,5 +1,21 @@
 const mongoose = require("mongoose");
 
+// Comment Schema
+const commentSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    text: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
 const issueSchema = new mongoose.Schema(
   {
     issueTitle: {
@@ -59,6 +75,22 @@ const issueSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    // Likes - array of user IDs who liked
+    likes: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    // Dislikes - array of user IDs who disliked
+    dislikes: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    // Comments
+    comments: [commentSchema],
   },
   { timestamps: true }
 );

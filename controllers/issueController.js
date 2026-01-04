@@ -255,3 +255,157 @@ exports.getIssueStats = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// LIKE ISSUE
+exports.likeIssue = async (req, res) => {
+  try {
+    const issue = await Issue.findById(req.params.id);
+
+    if (!issue) {
+      return res.status(404).json({ message: "Issue not found" });
+    }
+
+    const userId = req.user.userId;
+
+    // Check if user already liked
+    const alreadyLiked = issue.likes.includes(userId);
+
+    if (alreadyLiked) {
+      // Remove like (toggle off)
+      issue.likes = issue.likes.filter((id) => id.toString() !== userId);
+    } else {
+      // Add like and remove from dislikes if present
+      issue.likes.push(userId);
+      issue.dislikes = issue.dislikes.filter((id) => id.toString() !== userId);
+    }
+
+    await issue.save();
+
+    res.json({
+      likes: issue.likes.length,
+      dislikes: issue.dislikes.length,
+      userLiked: !alreadyLiked,
+      userDisliked: false,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// DISLIKE ISSUE
+exports.dislikeIssue = async (req, res) => {
+  try {
+    const issue = await Issue.findById(req.params.id);
+
+    if (!issue) {
+      return res.status(404).json({ message: "Issue not found" });
+    }
+
+    const userId = req.user.userId;
+
+    // Check if user already disliked
+    const alreadyDisliked = issue.dislikes.includes(userId);
+
+    if (alreadyDisliked) {
+      // Remove dislike (toggle off)
+      issue.dislikes = issue.dislikes.filter((id) => id.toString() !== userId);
+    } else {
+      // Add dislike and remove from likes if present
+      issue.dislikes.push(userId);
+      issue.likes = issue.likes.filter((id) => id.toString() !== userId);
+    }
+
+    await issue.save();
+
+    res.json({
+      likes: issue.likes.length,
+      dislikes: issue.dislikes.length,
+      userLiked: false,
+      userDisliked: !alreadyDisliked,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ADD COMMENT
+exports.addComment = async (req, res) => {
+  try {
+    const { text } = req.body;
+
+    if (!text || text.trim() === "") {
+      return res.status(400).json({ message: "Comment text is required" });
+    }
+
+    const issue = await Issue.findById(req.params.id);
+
+    if (!issue) {
+      return res.status(404).json({ message: "Issue not found" });
+    }
+
+    const newComment = {
+      user: req.user.userId,
+      text: text.trim(),
+    };
+
+    issue.comments.push(newComment);
+    await issue.save();
+
+    // Get the populated issue with comments
+    const updatedIssue = await Issue.findById(req.params.id)
+      .populate("comments.user", "name username");
+
+    res.status(201).json({
+      message: "Comment added successfully",
+      comments: updatedIssue.comments,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// GET COMMENTS
+exports.getComments = async (req, res) => {
+  try {
+    const issue = await Issue.findById(req.params.id)
+      .populate("comments.user", "name username");
+
+    if (!issue) {
+      return res.status(404).json({ message: "Issue not found" });
+    }
+
+    res.json({ comments: issue.comments });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// DELETE COMMENT
+exports.deleteComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const issue = await Issue.findById(req.params.id);
+
+    if (!issue) {
+      return res.status(404).json({ message: "Issue not found" });
+    }
+
+    const comment = issue.comments.id(commentId);
+
+    if (!comment) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+
+    // Only comment author or admin can delete
+    if (comment.user.toString() !== req.user.userId && req.user.role !== "Admin") {
+      return res.status(403).json({ message: "Not authorized to delete this comment" });
+    }
+
+    issue.comments.pull(commentId);
+    await issue.save();
+
+    res.json({ message: "Comment deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
